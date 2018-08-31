@@ -27,7 +27,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	cloudkms "github.com/google/google-api-go-client/cloudkms/v1"
+	cloudkms "google.golang.org/api/cloudkms/v1"
 )
 
 // Signer extends crypto.Signer to provide more key metadata.
