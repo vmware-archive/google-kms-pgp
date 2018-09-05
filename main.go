@@ -82,7 +82,7 @@ func main() {
 	case options.export:
 		args := pflag.Args()
 		if len(args) != 1 {
-			usage()
+			usage("--export --name NAME [--comment COMMENT] --email EMAIL [--armor] [--output OUTPUT] KEY")
 		}
 
 		options.key = args[0]
@@ -90,13 +90,13 @@ func main() {
 	case options.sign, options.clearSign:
 		args := pflag.Args()
 		if len(args) != 1 {
-			usage()
+			usage("--sign|--clearsign --local-user KEY [--detach-sign] [--armor] [--output OUTPUT] [INPUT]")
 		}
 
 		options.input = args[0]
 		err = runSign(options)
 	default:
-		usage()
+		usage("--export|--sign|--clearsign")
 	}
 
 	if err != nil {
@@ -105,8 +105,9 @@ func main() {
 	}
 }
 
-func usage() {
-	pflag.Usage()
+func usage(msg string) {
+	fmt.Fprintf(os.Stderr, "usage: %s %s\n", os.Args[0], msg)
+	pflag.CommandLine.PrintDefaults()
 	os.Exit(1)
 }
 
