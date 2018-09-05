@@ -22,6 +22,7 @@ import (
 	"io"
 	"os"
 
+	"golang.org/x/crypto/openpgp/clearsign"
 	"golang.org/x/crypto/openpgp/s2k"
 
 	"github.com/pkg/errors"
@@ -45,6 +46,7 @@ type options struct {
 	key               string
 	detachedSignature bool
 	sign              bool
+	clearSign         bool
 	input             string
 	output            string
 	name              string
@@ -67,6 +69,7 @@ func main() {
 
 	// sign options
 	pflag.BoolVarP(&options.sign, "sign", "s", options.sign, "sign a message")
+	pflag.BoolVar(&options.clearSign, "clearsign", options.sign, "sign a message in clear text")
 	pflag.StringVarP(&options.key, "local-user", "u", options.key, "name of key to sign with")
 	pflag.BoolVarP(&options.detachedSignature, "detach-sign", "b", options.detachedSignature, "make a detached signature")
 
@@ -84,7 +87,7 @@ func main() {
 
 		options.key = args[0]
 		err = runExport(options)
-	case options.sign:
+	case options.sign, options.clearSign:
 		args := pflag.Args()
 		if len(args) != 1 {
 			usage()
@@ -228,7 +231,11 @@ func runSign(options options) error {
 
 	switch {
 	case options.detachedSignature && options.armor:
-		return openpgp.ArmoredDetachSign(output, entity, input, &cfg)
+		if err := openpgp.ArmoredDetachSign(output, entity, input, &cfg); err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "\n")
+		return nil
 	case options.detachedSignature && !options.armor:
 		return openpgp.DetachSign(output, entity, input, &cfg)
 	case !options.detachedSignature:
@@ -257,7 +264,16 @@ func runSign(options options) error {
 		}
 
 		// Get ready to sign
-		writeCloser, err := openpgp.Sign(output, entity, fileHints, &cfg)
+		var (
+			writeCloser io.WriteCloser
+			addNewline  bool
+		)
+		if options.clearSign {
+			addNewline = true
+			writeCloser, err = clearsign.Encode(output, entity.PrivateKey, &cfg)
+		} else {
+			writeCloser, err = openpgp.Sign(output, entity, fileHints, &cfg)
+		}
 		if err != nil {
 			return err
 		}
@@ -271,10 +287,16 @@ func runSign(options options) error {
 		if copyErr != nil {
 			return copyErr
 		}
-		return closeErr
+		if closeErr != nil {
+			return closeErr
+		}
+		if addNewline {
+			fmt.Fprintf(output, "\n")
+		}
+		return nil
 	}
 
-	return errors.New("should never get here")
+	return nil
 }
 
 func getEntity(key string) (*openpgp.Entity, error) {
