@@ -10,44 +10,38 @@ $ go get -u -v github.com/heptiolabs/google-kms-pgp
 [...]
 $ google-kms-pgp
 
-usage: google-kms-pgp generate|sign
-
-Commands:
-	generate:
-		Generate a PGP-compatible public key from the Google Cloud KMS key.
-
-	sign:
-		Sign the input from stdin and produce an ASCII-armored signature on stdout
-
-Environment variables:
-	KEY_NAME:
-		Google Cloud KMS key version resource ID, for example:
-		'projects/$PROJECT/locations/$LOCATION/keyRings/$KEYRING/cryptoKeys/$KEYNAME/cryptoKeyVersions/1'
-	GOOGLE_APPLICATION_CREDENTIALS (optional):
-		Path to Google Cloud credentials file.
-	PGP_UID_NAME (generate only):
-		Name for generated PGP key (e.g., "Phil Zimmermann").
-	PGP_UID_COMMENT (generate only, optional):
-		Comment for generated PGP key.
-	PGP_UID_EMAIL (generate only):
-		Email for generated PGP key (e.g., "phil@example.com")
+usage: google-kms-pgp --export|--sign|--clearsign
+  -a, --armor               output in ascii armor
+      --clearsign           sign a message in clear text
+      --comment string      comment associated with the key
+  -b, --detach-sign         make a detached signature
+      --email string        email associated with the key
+      --export              export public key
+  -u, --local-user string   name of key to sign with
+      --name string         name associated with the key
+  -o, --output string       write output to file (use - for stdout)
+  -s, --sign                sign a message
 ```
 
-This binary has two subcommands:
+This binary has two modes of execution:
 
-- `generate`: generates a PGP-compatible public key from a Google Cloud KMS key.
+- `--export`: generates and exports a PGP-compatible public key from a Google Cloud KMS key.
 
-- `sign`: signs input using the Google Cloud KMS key, producing an ASCII-armored PGP detached signature.
+- `--sign|--clearsign`: signs input using the Google Cloud KMS key, producing a PGP signature.
 
 ## Usage: Generating a Key
 
 ```console
 $ export GOOGLE_APPLICATION_CREDENTIALS=./path/to/google/credentials.json
-$ export KEY_NAME=projects/my-project/locations/my-location/keyRings/my-keyring/cryptoKeys/my-key/cryptoKeyVersions/1
-$ export PGP_UID_NAME="My User"
-$ export PGP_UID_COMMENT="A comment about my key"
-$ export PGP_UID_EMAIL="myuser@example.com"
-$ google-kms-pgp generate > my-public-key.asc
+
+$ google-kms-pgp --export \
+								 --name "My User" \
+								 --comment "A comment about my key" \
+								 --email "myuser@example.com" \
+								 --armor \
+								 --output my-public-key.asc \
+								 projects/my-project/locations/my-location/keyRings/my-keyring/cryptoKeys/my-key/cryptoKeyVersions/1
+
 $ gpg --import my-public-key.asc
 gpg: key 6014DEDCDEC1EF5F: "My User (A comment about my key) <myuser@example.com>" 1 new user ID
 gpg: key 6014DEDCDEC1EF5F: "My User (A comment about my key) <myuser@example.com>" 1 new signature
@@ -62,8 +56,13 @@ You can import this key into GPG using `gpg --import my-public-key.asc` and opti
 
 ```console
 $ export GOOGLE_APPLICATION_CREDENTIALS=./path/to/google/credentials.json
-$ export KEY_NAME=projects/my-project/locations/my-location/keyRings/my-keyring/cryptoKeys/my-key/cryptoKeyVersions/1
-$ google-kms-pgp sign < hello.txt > hello.txt.asc
+
+$ google-kms-pgp --sign \
+								 --detach-sign \
+								 --armor \
+								 --local-user projects/my-project/locations/my-location/keyRings/my-keyring/cryptoKeys/my-key/cryptoKeyVersions/1 \
+								 hello.txt
+
 $ gpg --verify hello.txt.asc hello.txt
 gpg: Signature made Fri Aug 31 11:48:35 2018 CDT
 gpg:                using RSA key 6014DEDCDEC1EF5F
