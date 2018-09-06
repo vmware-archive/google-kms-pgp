@@ -87,7 +87,7 @@ func main() {
 
 		options.key = args[0]
 		err = runExport(options)
-	case options.sign, options.clearSign:
+	case options.sign, options.clearSign, options.detachedSignature:
 		args := pflag.Args()
 		if len(args) != 1 {
 			usage("--sign|--clearsign --local-user KEY [--detach-sign] [--armor] [--output OUTPUT] [INPUT]")
