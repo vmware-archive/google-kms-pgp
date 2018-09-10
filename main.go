@@ -43,6 +43,8 @@ var (
 type options struct {
 	export            bool
 	armor             bool
+	localUser         string
+	defaultKey        string
 	key               string
 	detachedSignature bool
 	sign              bool
@@ -70,11 +72,24 @@ func main() {
 	// sign options
 	pflag.BoolVarP(&options.sign, "sign", "s", options.sign, "sign a message")
 	pflag.BoolVar(&options.clearSign, "clearsign", options.sign, "sign a message in clear text")
-	pflag.StringVarP(&options.key, "local-user", "u", options.key, "name of key to sign with")
+	pflag.StringVarP(&options.localUser, "local-user", "u", options.localUser, "name of key to sign with")
+	pflag.StringVar(&options.defaultKey, "default-key", options.defaultKey, "name of key to sign with")
 	pflag.BoolVarP(&options.detachedSignature, "detach-sign", "b", options.detachedSignature, "make a detached signature")
 
 	pflag.CommandLine.ParseErrorsWhitelist.UnknownFlags = true
 	pflag.Parse()
+
+	// local-user and default-key are mutually exclusive, for our purposes
+	if options.localUser != "" && options.defaultKey != "" {
+		fmt.Fprintln(os.Stderr, "you may set either local-user or default-key, but not both")
+		os.Exit(1)
+	}
+	if options.localUser != "" {
+		options.key = options.localUser
+	}
+	if options.defaultKey != "" {
+		options.key = options.defaultKey
+	}
 
 	var err error
 
@@ -88,12 +103,14 @@ func main() {
 		options.key = args[0]
 		err = runExport(options)
 	case options.sign, options.clearSign, options.detachedSignature:
-		args := pflag.Args()
-		if len(args) != 1 {
+		if options.key == "" {
 			usage("--sign|--clearsign --local-user KEY [--detach-sign] [--armor] [--output OUTPUT] [INPUT]")
 		}
 
-		options.input = args[0]
+		args := pflag.Args()
+		if len(args) == 1 {
+			options.input = args[0]
+		}
 		err = runSign(options)
 	default:
 		usage("--export|--sign|--clearsign")
@@ -202,7 +219,7 @@ func runSign(options options) error {
 	}
 
 	if options.output == "" {
-		if options.detachedSignature {
+		if options.detachedSignature || options.clearSign {
 			options.output = options.input + ".asc"
 		} else {
 			options.output = options.input + ".gpg"
