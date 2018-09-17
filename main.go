@@ -154,7 +154,7 @@ func runExport(options options) error {
 		Name:   uid.Id,
 		UserId: uid,
 		SelfSignature: &packet.Signature{
-			CreationTime: cfg.Now(),
+			CreationTime: entity.PrimaryKey.CreationTime,
 			SigType:      packet.SigTypePositiveCert,
 			PubKeyAlgo:   packet.PubKeyAlgoRSA,
 			Hash:         cfg.Hash(),
