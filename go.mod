@@ -1,5 +1,7 @@
 module github.com/heptiolabs/google-kms-pgp
 
+go 1.16
+
 require (
 	cloud.google.com/go v0.27.0 // indirect
 	github.com/golang/protobuf v1.2.0 // indirect
