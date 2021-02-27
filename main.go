@@ -36,19 +36,17 @@ import (
 	"github.com/heptiolabs/google-kms-pgp/kmssigner"
 )
 
-var (
-	cfg = packet.Config{}
-)
+var cfg = packet.Config{}
 
 type options struct {
 	export            bool
 	armor             bool
-	localUser         string
-	defaultKey        string
-	key               string
 	detachedSignature bool
 	sign              bool
 	clearSign         bool
+	localUser         string
+	defaultKey        string
+	key               string
 	input             string
 	output            string
 	name              string
@@ -84,9 +82,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "you may set either local-user or default-key, but not both")
 		os.Exit(1)
 	}
+
 	if options.localUser != "" {
 		options.key = options.localUser
 	}
+
 	if options.defaultKey != "" {
 		options.key = options.defaultKey
 	}
@@ -111,6 +111,7 @@ func main() {
 		if len(args) == 1 {
 			options.input = args[0]
 		}
+
 		err = runSign(options)
 	default:
 		usage("--export|--sign|--clearsign")
@@ -132,9 +133,11 @@ func runExport(options options) error {
 	if options.key == "" {
 		return errors.New("key is required")
 	}
+
 	if options.name == "" {
 		return errors.New("name is required")
 	}
+
 	if options.email == "" {
 		return errors.New("email is required")
 	}
@@ -165,7 +168,13 @@ func runExport(options options) error {
 			IssuerKeyId:  &entity.PrimaryKey.KeyId,
 		},
 	}
-	if err := entity.Identities[uid.Id].SelfSignature.SignUserId(uid.Id, entity.PrimaryKey, entity.PrivateKey, &cfg); err != nil {
+
+	if err := entity.Identities[uid.Id].SelfSignature.SignUserId(
+		uid.Id,
+		entity.PrimaryKey,
+		entity.PrivateKey,
+		&cfg,
+	); err != nil {
 		return errors.WithMessage(err, "could not self-sign public key")
 	}
 
@@ -179,6 +188,7 @@ func runExport(options options) error {
 		if err != nil {
 			return errors.Wrapf(err, "unable to create output file %q", options.output)
 		}
+
 		defer outFile.Close()
 		out = outFile
 	}
@@ -199,10 +209,8 @@ func runExport(options options) error {
 
 		// Always add a blank line to the end of the raw output
 		fmt.Fprintf(out, "\n")
-	} else {
-		if err := entity.Serialize(out); err != nil {
-			return errors.Wrap(err, "could not serialize public key")
-		}
+	} else if err := entity.Serialize(out); err != nil {
+		return errors.Wrap(err, "could not serialize public key")
 	}
 
 	return nil
@@ -234,6 +242,7 @@ func runSign(options options) error {
 		if err != nil {
 			return err
 		}
+
 		defer outputFile.Close()
 		output = outputFile
 	}
@@ -243,6 +252,7 @@ func runSign(options options) error {
 		if err != nil {
 			return err
 		}
+
 		defer inputFile.Close()
 		input = inputFile
 	}
@@ -252,20 +262,22 @@ func runSign(options options) error {
 		if err := openpgp.ArmoredDetachSign(output, entity, input, &cfg); err != nil {
 			return err
 		}
+
 		fmt.Fprintf(output, "\n")
 		return nil
 	case options.detachedSignature && !options.armor:
 		return openpgp.DetachSign(output, entity, input, &cfg)
 	case !options.detachedSignature:
 		// Set up an "identity" so we can control the hash algorithm
-		hashIdSha256, ok := s2k.HashToHashId(crypto.SHA256)
+		hashIDSha256, ok := s2k.HashToHashId(crypto.SHA256)
 		if !ok {
 			return errors.New("unable to get pgp hash id for sha256")
 		}
+
 		entity.Identities["HACK"] = &openpgp.Identity{
 			SelfSignature: &packet.Signature{
 				PreferredHash: []uint8{
-					hashIdSha256,
+					hashIDSha256,
 				},
 			},
 		}
@@ -278,6 +290,7 @@ func runSign(options options) error {
 			if err != nil {
 				return err
 			}
+
 			fileHints.ModTime = fileInfo.ModTime()
 		}
 
@@ -286,12 +299,14 @@ func runSign(options options) error {
 			writeCloser io.WriteCloser
 			addNewline  bool
 		)
+
 		if options.clearSign {
 			addNewline = true
 			writeCloser, err = clearsign.Encode(output, entity.PrivateKey, &cfg)
 		} else {
 			writeCloser, err = openpgp.Sign(output, entity, fileHints, &cfg)
 		}
+
 		if err != nil {
 			return err
 		}
@@ -305,12 +320,15 @@ func runSign(options options) error {
 		if copyErr != nil {
 			return copyErr
 		}
+
 		if closeErr != nil {
 			return closeErr
 		}
+
 		if addNewline {
 			fmt.Fprintf(output, "\n")
 		}
+
 		return nil
 	}
 
@@ -321,12 +339,14 @@ func getEntity(key string) (*openpgp.Entity, error) {
 	if key == "" {
 		return nil, errors.New("key is required")
 	}
+
 	// Connect to the Google Cloud KMS API
 	ctx := context.Background()
 	oauthClient, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Google Cloud OAuth client")
 	}
+
 	svc, err := cloudkms.New(oauthClient)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Google Cloud KMS client")
