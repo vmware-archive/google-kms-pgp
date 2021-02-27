@@ -36,7 +36,10 @@ import (
 	"github.com/heptiolabs/google-kms-pgp/kmssigner"
 )
 
-var cfg = packet.Config{}
+var (
+	cfg  = packet.Config{}
+	opts = &options{}
+)
 
 type options struct {
 	export            bool
@@ -55,64 +58,62 @@ type options struct {
 }
 
 func main() {
-	var options options
-
 	// common options
-	pflag.BoolVarP(&options.armor, "armor", "a", options.armor, "output in ascii armor")
-	pflag.StringVarP(&options.output, "output", "o", options.output, "write output to file (use - for stdout)")
+	pflag.BoolVarP(&opts.armor, "armor", "a", opts.armor, "output in ascii armor")
+	pflag.StringVarP(&opts.output, "output", "o", opts.output, "write output to file (use - for stdout)")
 
 	// export options
-	pflag.BoolVar(&options.export, "export", options.export, "export public key")
-	pflag.StringVar(&options.name, "name", options.name, "name associated with the key")
-	pflag.StringVar(&options.comment, "comment", options.comment, "comment associated with the key")
-	pflag.StringVar(&options.email, "email", options.email, "email associated with the key")
+	pflag.BoolVar(&opts.export, "export", opts.export, "export public key")
+	pflag.StringVar(&opts.name, "name", opts.name, "name associated with the key")
+	pflag.StringVar(&opts.comment, "comment", opts.comment, "comment associated with the key")
+	pflag.StringVar(&opts.email, "email", opts.email, "email associated with the key")
 
 	// sign options
-	pflag.BoolVarP(&options.sign, "sign", "s", options.sign, "sign a message")
-	pflag.BoolVar(&options.clearSign, "clearsign", options.sign, "sign a message in clear text")
-	pflag.StringVarP(&options.localUser, "local-user", "u", options.localUser, "name of key to sign with")
-	pflag.StringVar(&options.defaultKey, "default-key", options.defaultKey, "name of key to sign with")
-	pflag.BoolVarP(&options.detachedSignature, "detach-sign", "b", options.detachedSignature, "make a detached signature")
+	pflag.BoolVarP(&opts.sign, "sign", "s", opts.sign, "sign a message")
+	pflag.BoolVar(&opts.clearSign, "clearsign", opts.sign, "sign a message in clear text")
+	pflag.StringVarP(&opts.localUser, "local-user", "u", opts.localUser, "name of key to sign with")
+	pflag.StringVar(&opts.defaultKey, "default-key", opts.defaultKey, "name of key to sign with")
+	pflag.BoolVarP(&opts.detachedSignature, "detach-sign", "b", opts.detachedSignature, "make a detached signature")
 
 	pflag.CommandLine.ParseErrorsWhitelist.UnknownFlags = true
 	pflag.Parse()
 
 	// local-user and default-key are mutually exclusive, for our purposes
-	if options.localUser != "" && options.defaultKey != "" {
+	if opts.localUser != "" && opts.defaultKey != "" {
 		fmt.Fprintln(os.Stderr, "you may set either local-user or default-key, but not both")
 		os.Exit(1)
 	}
 
-	if options.localUser != "" {
-		options.key = options.localUser
+	if opts.localUser != "" {
+		opts.key = opts.localUser
 	}
 
-	if options.defaultKey != "" {
-		options.key = options.defaultKey
+	if opts.defaultKey != "" {
+		opts.key = opts.defaultKey
 	}
 
 	var err error
 
 	switch {
-	case options.export:
+	case opts.export:
 		args := pflag.Args()
 		if len(args) != 1 {
 			usage("--export --name NAME [--comment COMMENT] --email EMAIL [--armor] [--output OUTPUT] KEY")
 		}
 
-		options.key = args[0]
-		err = runExport(options)
-	case options.sign, options.clearSign, options.detachedSignature:
-		if options.key == "" {
+		opts.key = args[0]
+		err = runExport(opts)
+	case opts.sign, opts.clearSign, opts.detachedSignature:
+		if opts.key == "" {
 			usage("--sign|--clearsign --local-user KEY [--detach-sign] [--armor] [--output OUTPUT] [INPUT]")
 		}
 
 		args := pflag.Args()
 		if len(args) == 1 {
-			options.input = args[0]
+			opts.input = args[0]
 		}
 
-		err = runSign(options)
+		err = runSign(opts)
 	default:
 		usage("--export|--sign|--clearsign")
 	}
@@ -129,25 +130,25 @@ func usage(msg string) {
 	os.Exit(1)
 }
 
-func runExport(options options) error {
-	if options.key == "" {
+func runExport(opts *options) error {
+	if opts.key == "" {
 		return errors.New("key is required")
 	}
 
-	if options.name == "" {
+	if opts.name == "" {
 		return errors.New("name is required")
 	}
 
-	if options.email == "" {
+	if opts.email == "" {
 		return errors.New("email is required")
 	}
 
-	entity, err := getEntity(options.key)
+	entity, err := getEntity(opts.key)
 	if err != nil {
 		return err
 	}
 
-	uid := packet.NewUserId(options.name, options.comment, options.email)
+	uid := packet.NewUserId(opts.name, opts.comment, opts.email)
 	if uid == nil {
 		return errors.Errorf("could not generate PGP user ID metadata")
 	}
@@ -180,20 +181,20 @@ func runExport(options options) error {
 
 	var out io.Writer
 
-	switch options.output {
+	switch opts.output {
 	case "", "-":
 		out = os.Stdout
 	default:
-		outFile, err := os.Create(options.output)
+		outFile, err := os.Create(opts.output)
 		if err != nil {
-			return errors.Wrapf(err, "unable to create output file %q", options.output)
+			return errors.Wrapf(err, "unable to create output file %q", opts.output)
 		}
 
 		defer outFile.Close()
 		out = outFile
 	}
 
-	if options.armor {
+	if opts.armor {
 		armoredWriter, err := armor.Encode(out, "PGP PUBLIC KEY BLOCK", nil)
 		if err != nil {
 			return errors.Wrap(err, "could not create ASCII-armored writer")
@@ -216,29 +217,29 @@ func runExport(options options) error {
 	return nil
 }
 
-func runSign(options options) error {
-	if options.key == "" {
+func runSign(opts *options) error {
+	if opts.key == "" {
 		return errors.New("key is required")
 	}
 
-	entity, err := getEntity(options.key)
+	entity, err := getEntity(opts.key)
 	if err != nil {
 		return err
 	}
 
-	if options.output == "" {
-		if options.detachedSignature || options.clearSign {
-			options.output = options.input + ".asc"
+	if opts.output == "" {
+		if opts.detachedSignature || opts.clearSign {
+			opts.output = opts.input + ".asc"
 		} else {
-			options.output = options.input + ".gpg"
+			opts.output = opts.input + ".gpg"
 		}
 	}
 
 	var output io.Writer = os.Stdout
 	var input io.Reader = os.Stdin
 
-	if options.output != "-" {
-		outputFile, err := os.Create(options.output)
+	if opts.output != "-" {
+		outputFile, err := os.Create(opts.output)
 		if err != nil {
 			return err
 		}
@@ -247,8 +248,8 @@ func runSign(options options) error {
 		output = outputFile
 	}
 
-	if options.input != "" {
-		inputFile, err := os.Open(options.input)
+	if opts.input != "" {
+		inputFile, err := os.Open(opts.input)
 		if err != nil {
 			return err
 		}
@@ -258,16 +259,16 @@ func runSign(options options) error {
 	}
 
 	switch {
-	case options.detachedSignature && options.armor:
+	case opts.detachedSignature && opts.armor:
 		if err := openpgp.ArmoredDetachSign(output, entity, input, &cfg); err != nil {
 			return err
 		}
 
 		fmt.Fprintf(output, "\n")
 		return nil
-	case options.detachedSignature && !options.armor:
+	case opts.detachedSignature && !opts.armor:
 		return openpgp.DetachSign(output, entity, input, &cfg)
-	case !options.detachedSignature:
+	case !opts.detachedSignature:
 		// Set up an "identity" so we can control the hash algorithm
 		hashIDSha256, ok := s2k.HashToHashId(crypto.SHA256)
 		if !ok {
@@ -284,9 +285,9 @@ func runSign(options options) error {
 
 		// If we're doing a real file, set up hints for it
 		fileHints := &openpgp.FileHints{}
-		if options.input != "" {
-			fileHints.FileName = options.input
-			fileInfo, err := os.Stat(options.input)
+		if opts.input != "" {
+			fileHints.FileName = opts.input
+			fileInfo, err := os.Stat(opts.input)
 			if err != nil {
 				return err
 			}
@@ -300,7 +301,7 @@ func runSign(options options) error {
 			addNewline  bool
 		)
 
-		if options.clearSign {
+		if opts.clearSign {
 			addNewline = true
 			writeCloser, err = clearsign.Encode(output, entity.PrivateKey, &cfg)
 		} else {
