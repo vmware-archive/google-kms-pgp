@@ -30,7 +30,6 @@ import (
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
-	"golang.org/x/oauth2/google"
 	cloudkms "google.golang.org/api/cloudkms/v1"
 
 	"github.com/heptiolabs/google-kms-pgp/kmssigner"
@@ -342,13 +341,10 @@ func getEntity(key string) (*openpgp.Entity, error) {
 	}
 
 	// Connect to the Google Cloud KMS API
+	// TODO: Consider using gocloud.dev here
+	//       ref: https://gocloud.dev/howto/secrets/#gcp-ctor
 	ctx := context.Background()
-	oauthClient, err := google.DefaultClient(ctx, cloudkms.CloudPlatformScope)
-	if err != nil {
-		return nil, errors.Wrap(err, "could not create Google Cloud OAuth client")
-	}
-
-	svc, err := cloudkms.New(oauthClient)
+	svc, err := cloudkms.NewService(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not create Google Cloud KMS client")
 	}
